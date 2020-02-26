@@ -1,0 +1,100 @@
+---
+title: Specification curve example
+author: Danielle Cosme
+date: '2019-02-26'
+slug: []
+categories:
+  - rstats
+tags:
+  - specification curve
+  - tutorial
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2019-02-26T15:07:22-07:00'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+
+
+<p>I was inspired by these amazing examples of specification curves by <a href="https://www.psychologicalscience.org/observer/run-all-the-models-dealing-with-data-analytic-flexibility">Julia Rohrer</a> and <a href="https://www.nature.com/articles/s41562-018-0506-1">Amy Orben</a>, so I wrote some code to generate a curve like this:</p>
+<p><img src="/img/sca-example/specification_example.png" alt="Example specification curve"></p>
+<p>Below is code to create a specification curve using a toy example from the <code>airquality</code> dataset. Enjoy!</p>
+<div id="load-packages" class="section level1">
+<h1>load packages</h1>
+<pre class="r"><code>library(tidyverse)
+library(lme4)
+library(MuMIn)
+library(cowplot)</code></pre>
+</div>
+<div id="run-models" class="section level1">
+<h1>run models</h1>
+<p>Run all possible nested models using the <a href="https://www.rdocumentation.org/packages/MuMIn/versions/1.42.1/topics/dredge"><code>dredge</code></a> function from the <a href="https://www.rdocumentation.org/packages/MuMIn/versions/1.42.1"><code>MuMIn</code></a> package.</p>
+<pre class="r"><code># set na.action for dredge
+options(na.action = &quot;na.fail&quot;)
+
+# omit NAs
+airquality.na = airquality %&gt;% 
+  na.omit()
+
+# run full model
+full.model = lm(Ozone ~ Solar.R + Wind + Temp + Month + Day, data = airquality.na)
+
+# run all possible nested models
+all.models = dredge(full.model, rank = &quot;AIC&quot;, extra = &quot;BIC&quot;) # rank based on AIC, but include BIC as well
+
+# set AIC for null model you want to compare model AIC values to
+null.AIC = 1025
+
+# variables included in model
+variable.names = names(airquality)[-1]</code></pre>
+</div>
+<div id="plot" class="section level1">
+<h1>plot</h1>
+<p>On the top panel, plot the AIC of each model and color based on whether each is a better fitting model than some comparator (e.g., the AIC for the null model). The bottom panel specifies which variables were included in each model in the top panel.</p>
+<pre class="r"><code>plot.data = all.models %&gt;%
+  arrange(AIC) %&gt;%
+  mutate(specification = row_number(), 
+         better.fit = ifelse(AIC &lt; null.AIC, &quot;yes&quot;, &quot;no&quot;))
+
+top = plot.data %&gt;%
+  ggplot(aes(specification, AIC, color = better.fit)) + # color is based on whether model is better fitting than the null
+    geom_point(shape = &quot;|&quot;, size = 4) +
+    geom_hline(yintercept = null.AIC, linetype = &quot;dashed&quot;, color = &quot;red&quot;) + # dashed line for null model AIC
+    scale_color_manual(values = c(&quot;black&quot;, &quot;red&quot;)) +
+    labs(x = &quot;&quot;, y = &quot;AIC\n&quot;) + 
+    theme_minimal(base_size = 12) +
+    theme(text = element_text(family = &quot;Futura Medium&quot;),
+          axis.text = element_text(color = &quot;black&quot;),
+          axis.line = element_line(colour = &quot;black&quot;),
+          legend.position = &quot;none&quot;,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank())
+
+bottom = plot.data %&gt;%
+  gather(variable, value, eval(variable.names)) %&gt;% # gather predictor variables
+  mutate(value = ifelse(!is.na(value), &quot;|&quot;, &quot;&quot;)) %&gt;% # plot a line if included in the model
+  ggplot(aes(specification, variable, color = better.fit)) +
+    geom_text(aes(label = value), alpha = 1) +
+    scale_color_manual(values = c(&quot;black&quot;, &quot;red&quot;)) +
+    labs(x = &quot;\nspecification number&quot;, y = &quot;variables\n&quot;) + 
+    theme_minimal(base_size = 12) +
+    theme(text = element_text(family = &quot;Futura Medium&quot;),
+          axis.text = element_text(color = &quot;black&quot;),
+          axis.line = element_line(colour = &quot;black&quot;),
+          legend.position = &quot;none&quot;,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank())
+
+plot_grid(top, bottom, ncol = 1, align = &quot;v&quot;)</code></pre>
+<p><img src="/post/2019-02-26-specification-curve-example/index_files/figure-html/unnamed-chunk-3-1.png" width="576" /></p>
+</div>
